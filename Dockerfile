@@ -6,22 +6,22 @@ FROM node:20-alpine3.18 as builder
 # Install dumb-init
 RUN apk add --no-cache dumb-init
 
-# Set environment variables
-ENV NODE_ENV production
-ENV PORT 3001
-ENV NEXT_TELEMETRY_DISABLED 1
-
 # Set the working directory
 WORKDIR /app
 
 # Copy package files first for layer caching
 COPY package.json package-lock.json ./
 
-# Install ALL dependencies (including devDependencies for build)
+# Install ALL dependencies (NODE_ENV not set yet so devDependencies are included)
 RUN npm ci
 
 # Copy all source code
 COPY . .
+
+# Set environment variables AFTER installing dependencies
+ENV NODE_ENV production
+ENV PORT 3001
+ENV NEXT_TELEMETRY_DISABLED 1
 
 # Build Next.js (standalone mode)
 RUN npm run build
