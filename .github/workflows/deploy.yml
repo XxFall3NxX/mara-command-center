@@ -13,19 +13,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Build and Deploy
+      - name: Stop existing container
+        run: |
+          echo "🛑 Stopping existing container..."
+          docker stop mara-command 2>/dev/null || echo "No existing container"
+          docker rm mara-command 2>/dev/null || echo "No container to remove"
+          echo "✅ Cleanup complete"
+      
+      - name: Build Docker image
+        run: |
+          echo "🔨 Building Docker image..."
+          docker build -t mara-command-center:latest .
+          echo "✅ Build complete"
+      
+      - name: Deploy container
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
-          # Stop existing container
-          docker stop mara-command 2>/dev/null || true
-          docker rm mara-command 2>/dev/null || true
-          
-          # Build new image
-          docker build -t mara-command-center:latest .
-          
-          # Run container
+          echo "🚀 Starting container..."
           docker run -d \
             --name mara-command \
             -p 3001:3001 \
@@ -35,10 +41,16 @@ jobs:
             -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
             -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
             mara-command-center:latest
-          
-          # Wait and check
+          echo "⏳ Waiting for container to start..."
           sleep 5
-          docker ps | grep mara-command && echo "✅ Deployment successful!" || echo "❌ Deployment failed"
+          echo "✅ Container started"
+      
+      - name: Health check
+        run: |
+          echo "🏥 Checking container health..."
+          docker ps | grep mara-command && echo "✅ Container is running!" || (echo "❌ Container failed to start" && exit 1)
+          echo "📊 Container logs:"
+          docker logs mara-command --tail 20
       
       - name: Verify deployment
         run: |
