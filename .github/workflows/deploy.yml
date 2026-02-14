@@ -7,66 +7,38 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
       
-      - name: Deploy to EC2
+      - name: Build and Deploy
         env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
-          EC2_USER: ${{ secrets.EC2_USER }}
-          EC2_KEY: ${{ secrets.EC2_SSH_KEY }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
-          # Save SSH key
-          echo "$EC2_KEY" > ec2_key.pem
-          chmod 600 ec2_key.pem
+          # Stop existing container
+          docker stop mara-command 2>/dev/null || true
+          docker rm mara-command 2>/dev/null || true
           
-          # Create deployment directory on EC2
-          ssh -o StrictHostKeyChecking=no -i ec2_key.pem $EC2_USER@$EC2_HOST "mkdir -p ~/mara-command-center"
+          # Build new image
+          docker build -t mara-command-center:latest .
           
-          # Copy files to EC2
-          scp -o StrictHostKeyChecking=no -i ec2_key.pem -r ./* $EC2_USER@$EC2_HOST:~/mara-command-center/
+          # Run container
+          docker run -d \
+            --name mara-command \
+            -p 3001:3001 \
+            --restart unless-stopped \
+            -e NODE_ENV=production \
+            -e AWS_REGION=us-east-1 \
+            -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
+            -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
+            mara-command-center:latest
           
-          # Deploy on EC2
-          ssh -o StrictHostKeyChecking=no -i ec2_key.pem $EC2_USER@$EC2_HOST << 'ENDSSH'
-            cd ~/mara-command-center
-            
-            # Install Docker if not present
-            if ! command -v docker &> /dev/null; then
-              curl -fsSL https://get.docker.com -o get-docker.sh
-              sudo sh get-docker.sh
-              sudo usermod -aG docker $USER
-            fi
-            
-            # Stop existing container
-            docker stop mara-command 2>/dev/null || true
-            docker rm mara-command 2>/dev/null || true
-            
-            # Build new image
-            docker build -t mara-command-center:latest .
-            
-            # Run container
-            docker run -d \
-              --name mara-command \
-              -p 3001:3001 \
-              --restart unless-stopped \
-              -e NODE_ENV=production \
-              -e AWS_REGION=us-east-1 \
-              -e AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID} \
-              -e AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY} \
-              mara-command-center:latest
-            
-            # Wait and check
-            sleep 5
-            docker ps | grep mara-command && echo "✅ Deployment successful!" || echo "❌ Deployment failed"
-          ENDSSH
-          
-          # Cleanup
-          rm ec2_key.pem
+          # Wait and check
+          sleep 5
+          docker ps | grep mara-command && echo "✅ Deployment successful!" || echo "❌ Deployment failed"
       
       - name: Verify deployment
         run: |
