@@ -10,47 +10,61 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout Source
+      - name: 📦 Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Log in to Docker Hub
+      - name: 🔐 Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build Docker image
-        run: docker build -t xxfall3nxx/mara-command-center:latest .
+      - name: 🔨 Build Docker Image
+        run: |
+          echo "Building Docker image..."
+          docker build -t xxfall3nxx/mara-command-center:latest .
+          echo "✅ Build complete"
 
-      - name: Push to Docker Hub
-        run: docker push xxfall3nxx/mara-command-center:latest
+      - name: 📤 Push to Docker Hub
+        run: |
+          echo "Pushing image to Docker Hub..."
+          docker push xxfall3nxx/mara-command-center:latest
+          echo "✅ Image published"
 
   deploy:
     needs: build
     runs-on: self-hosted
     steps:
-      - name: Start Docker Service
+      - name: 🔧 Prepare Docker Service
         run: |
+          echo "Starting Docker service..."
           sudo systemctl start docker
           sudo chmod 666 /var/run/docker.sock
+          echo "✅ Docker service ready"
 
-      - name: Stop old container
-        run: docker rm -f mara-command || true
+      - name: 🗑️ Cleanup Old Deployment
+        run: |
+          echo "Removing old container..."
+          docker rm -f mara-command || echo "No old container to remove"
+          echo "Removing old image..."
+          docker rmi -f xxfall3nxx/mara-command-center:latest || echo "No old image to remove"
+          echo "✅ Cleanup complete"
 
-      - name: Remove old image
-        run: docker rmi -f xxfall3nxx/mara-command-center:latest || true
-
-      - name: Log in to Docker Hub
+      - name: 🔐 Log in to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Pull latest image
-        run: docker pull xxfall3nxx/mara-command-center:latest
-
-      - name: Run container
+      - name: 📥 Pull Latest Image from Docker Hub
         run: |
+          echo "Pulling image from Docker Hub..."
+          docker pull xxfall3nxx/mara-command-center:latest
+          echo "✅ Image pulled successfully"
+
+      - name: 🚀 Deploy Container
+        run: |
+          echo "Starting new container on port 3001..."
           docker run -d \
             --restart unless-stopped \
             -p 3001:3001 \
@@ -60,9 +74,14 @@ jobs:
             --env AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }} \
             --name mara-command \
             xxfall3nxx/mara-command-center:latest
+          echo "✅ Container started"
 
-      - name: Health check
+      - name: 🏥 Health Check
         run: |
+          echo "Waiting for application to start..."
           sleep 10
+          echo "Checking container status..."
           docker ps | grep mara-command
+          echo "Testing HTTP endpoint..."
           curl -f http://localhost:3001 || exit 1
+          echo "✅ Dashboard is live at https://mara.trendlydigital.com"
