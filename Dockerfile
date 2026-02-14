@@ -8,7 +8,7 @@ RUN apk add --no-cache dumb-init
 
 # Set environment variables
 ENV NODE_ENV production
-ENV PORT 3000
+ENV PORT 3001
 ENV NEXT_TELEMETRY_DISABLED 1
 
 # Set the working directory
@@ -17,8 +17,8 @@ WORKDIR /app
 # Copy package files first for layer caching
 COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm ci --omit=dev
+# Install ALL dependencies (including devDependencies for build)
+RUN npm ci
 
 # Copy all source code
 COPY . .
@@ -36,7 +36,7 @@ RUN apk add --no-cache dumb-init curl
 
 # Set environment variables
 ENV NODE_ENV production
-ENV PORT 3000
+ENV PORT 3001
 ENV NEXT_TELEMETRY_DISABLED 1
 
 # Set the working directory
@@ -51,11 +51,11 @@ COPY --from=builder /app/public ./public
 USER node
 
 # Expose the application port
-EXPOSE 3000
+EXPOSE 3001
 
 # Use dumb-init as the entry point to handle PID 1 correctly
 CMD ["dumb-init", "node", "server.js"]
 
 # Add a health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
-  CMD curl -fs http://localhost:3000/ || exit 1
+  CMD curl -fs http://localhost:3001/ || exit 1
